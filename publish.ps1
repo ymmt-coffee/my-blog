@@ -1,6 +1,9 @@
-﻿# Obsidian 記事を同期して GitHub に公開する
-$ErrorActionPreference = "Stop"
+﻿[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+# どこから実行されても my-blog 直下で動作するようにする
 Set-Location $PSScriptRoot
+
+# Obsidian 記事を同期して GitHub に公開する
+$ErrorActionPreference = "Stop"
 
 function Write-StepResult {
     param(
