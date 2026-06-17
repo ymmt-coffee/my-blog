@@ -9,5 +9,3 @@ Thumbs.db
 
 # スクリプトの同期記録
 scripts/.synced_files.json
-
-/public/
