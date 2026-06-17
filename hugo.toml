@@ -1,0 +1,15 @@
+baseURL = "https://your-username.github.io/my-blog/"
+languageCode = "ja"
+title = "ブログタイトル（あとで変更OK）"
+theme = "PaperMod"
+
+[params]
+  defaultTheme = "auto"
+  ShowReadingTime = true
+  ShowShareButtons = false
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = false
+
+[params.homeInfoParams]
+  Title = "ようこそ"
+  Content = "ゲームを通して感じたことを書いています"
