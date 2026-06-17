@@ -27,11 +27,16 @@ IMAGE_OUTPUT_DIR = "static/images"
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SYNC_STATE_FILE = Path(__file__).resolve().parent / ".synced_files.json"
-
 JST = timezone(timedelta(hours=9))
 
 WIKILINK_RE = re.compile(r"(?<!!)\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|([^\]]+))?\]\]")
 IMAGE_EMBED_RE = re.compile(r"!\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
+
+
+def configure_stdio() -> None:
+    if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
 
 
 def load_sync_state() -> list[str]:
@@ -54,13 +59,11 @@ def save_sync_state(filenames: list[str]) -> None:
 
 
 def mtime_to_date(path: Path) -> datetime:
-    ts = path.stat().st_mtime
-    return datetime.fromtimestamp(ts, tz=JST)
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=JST)
 
 
 def title_from_filename(path: Path) -> str:
     stem = path.stem
-    # YYYY-MM-DD- プレフィックスを除去
     if len(stem) > 11 and stem[4] == "-" and stem[7] == "-" and stem[10] == "-":
         stem = stem[11:]
     return stem.replace("-", " ").replace("_", " ")
@@ -68,16 +71,13 @@ def title_from_filename(path: Path) -> str:
 
 def find_image(source_md: Path, image_name: str) -> Path | None:
     """記事周辺から画像ファイルを探す。"""
-    candidates = [
-        source_md.parent / image_name,
-        source_md.parent / "attachments" / image_name,
-    ]
     blog_root = BLOG_DIR.resolve()
+    candidates: list[Path] = []
+
     for parent in [source_md.parent, *source_md.parents]:
         if not parent.is_relative_to(blog_root):
             break
-        candidates.append(parent / image_name)
-        candidates.append(parent / "attachments" / image_name)
+        candidates.extend([parent / image_name, parent / "attachments" / image_name])
 
     seen: set[Path] = set()
     for candidate in candidates:
@@ -118,57 +118,62 @@ def convert_images(text: str, source_md: Path, image_dir: Path) -> str:
 
 
 def normalize_frontmatter(post: frontmatter.Post, source_md: Path) -> frontmatter.Post:
-    if "title" not in post.metadata or not post.metadata["title"]:
+    if not post.metadata.get("title"):
         post.metadata["title"] = title_from_filename(source_md)
-
-    if "date" not in post.metadata or not post.metadata["date"]:
+    if not post.metadata.get("date"):
         post.metadata["date"] = mtime_to_date(source_md)
-    elif isinstance(post.metadata["date"], str):
-        # frontmatter が文字列のまま返す場合はそのまま（YAML パース済みなら datetime）
-        pass
-
-    # publish フラグはフォルダで判定するため不要
     post.metadata.pop("publish", None)
-
     return post
 
 
 def convert_file(source_md: Path, output_dir: Path, image_dir: Path) -> bool:
     try:
-        raw = source_md.read_text(encoding="utf-8")
-        post = frontmatter.loads(raw)
+        post = frontmatter.loads(source_md.read_text(encoding="utf-8"))
     except Exception as exc:
         print(f"Warning: フロントマターの解析に失敗しました [{source_md}]: {exc}")
         return False
 
     post = normalize_frontmatter(post, source_md)
-    body = convert_wikilinks(post.content)
-    body = convert_images(body, source_md, image_dir)
-    post.content = body
-
-    output_path = output_dir / source_md.name
-    output_path.write_text(frontmatter.dumps(post), encoding="utf-8")
+    post.content = convert_images(convert_wikilinks(post.content), source_md, image_dir)
+    (output_dir / source_md.name).write_text(frontmatter.dumps(post), encoding="utf-8")
     return True
 
 
 def collect_source_files() -> list[Path]:
     blog_root = BLOG_DIR.resolve()
     return sorted(
-        p
-        for p in blog_root.rglob("*.md")
-        if p.is_file() and p.is_relative_to(blog_root)
+        p for p in blog_root.rglob("*.md") if p.is_file() and p.is_relative_to(blog_root)
     )
 
 
-def main() -> int:
-    if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
+def delete_removed_posts(
+    output_dir: Path, previous_synced: set[str], current_outputs: set[str]
+) -> int:
+    deleted = 0
+    for filename in previous_synced - current_outputs:
+        target = output_dir / filename
+        if target.exists():
+            target.unlink()
+            deleted += 1
+            print(f"Deleted: {filename}")
+    return deleted
 
-    blog_dir = BLOG_DIR
-    if not blog_dir.is_dir():
+
+def print_report(converted: int, skipped: int, deleted: int, output_dir: Path) -> None:
+    print()
+    print("--- 同期レポート ---")
+    print(f"  変換: {converted} 件")
+    print(f"  スキップ: {skipped} 件")
+    print(f"  削除: {deleted} 件")
+    print(f"  出力先: {output_dir}")
+
+
+def main() -> int:
+    configure_stdio()
+
+    if not BLOG_DIR.is_dir():
         print(
-            f"Error: BLOG_DIR が存在しません: {blog_dir}\n"
+            f"Error: BLOG_DIR が存在しません: {BLOG_DIR}\n"
             "  パスを確認するか、Obsidian の Diary/blog フォルダを作成してください。",
             file=sys.stderr,
         )
@@ -179,35 +184,21 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     image_dir.mkdir(parents=True, exist_ok=True)
 
-    sources = collect_source_files()
-    previous_synced = set(load_sync_state())
     current_outputs: list[str] = []
-    converted = 0
-    skipped = 0
+    converted = skipped = 0
 
-    for source_md in sources:
+    for source_md in collect_source_files():
         if convert_file(source_md, output_dir, image_dir):
             current_outputs.append(source_md.name)
             converted += 1
         else:
             skipped += 1
 
-    deleted = 0
-    for filename in previous_synced - set(current_outputs):
-        target = output_dir / filename
-        if target.exists():
-            target.unlink()
-            deleted += 1
-            print(f"Deleted: {filename}")
-
+    deleted = delete_removed_posts(
+        output_dir, set(load_sync_state()), set(current_outputs)
+    )
     save_sync_state(current_outputs)
-
-    print()
-    print("--- 同期レポート ---")
-    print(f"  変換: {converted} 件")
-    print(f"  スキップ: {skipped} 件")
-    print(f"  削除: {deleted} 件")
-    print(f"  出力先: {output_dir}")
+    print_report(converted, skipped, deleted, output_dir)
     return 0
 
 
