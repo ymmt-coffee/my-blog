@@ -1,4 +1,4 @@
-baseURL = "https://your-username.github.io/my-blog/"
+baseURL = "https://ymmt-coffee.github.io/my-blog/"
 languageCode = "ja"
 title = "ブログタイトル（あとで変更OK）"
 theme = "PaperMod"
