@@ -68,7 +68,7 @@ if ($hasStaged) {
     }
 }
 else {
-    Write-StepResult -Step "git commit" -Success $true -Detail "no changes (skipped)"
+    Write-StepResult -Step "git commit" -Success $true -Detail "変更なし（スキップ）"
 }
 
 # 4. git push
@@ -87,5 +87,5 @@ catch {
 }
 
 Write-Host ""
-Write-Host "=== done ===" -ForegroundColor Cyan
+Write-Host "=== 完了 ===" -ForegroundColor Cyan
 Write-Host ""
