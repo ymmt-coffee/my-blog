@@ -1,0 +1,26 @@
+<article class="home-featured">
+  <header class="home-featured-header">
+    <h2 class="home-featured-title">
+      {{- .Title }}
+      {{- if .Draft }}
+      <span class="entry-hint" title="Draft">（下書き）</span>
+      {{- end }}
+    </h2>
+  </header>
+  {{- if ne (.Param "hideSummary") true }}
+  <div class="home-featured-content">
+    <p>{{ .Summary | plainify | htmlUnescape }}{{ if .Truncated }}…{{ end }}</p>
+  </div>
+  {{- end }}
+  <footer class="home-featured-footer">
+    <div class="home-featured-meta">
+      {{- if not .Date.IsZero }}
+      <span title="{{ .Date }}">{{ .Date | time.Format (default ":date_long" site.Params.DateFormat) }}</span>
+      <span class="meta-sep">·</span>
+      <span title="{{ .Date }}">{{ partial "relative_time_ja.html" .Date }}</span>
+      {{- end }}
+    </div>
+    <span class="home-featured-readmore">続きを読む →</span>
+  </footer>
+  <a class="entry-link" aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}"></a>
+</article>

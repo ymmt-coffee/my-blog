@@ -1,6 +1,6 @@
 baseURL = "https://ymmt-coffee.github.io/my-blog/"
 languageCode = "ja"
-title = "ブログタイトル（あとで変更OK）"
+title = "logs"
 theme = "PaperMod"
 buildFuture = false
 
@@ -9,7 +9,8 @@ buildFuture = false
 
 [params]
   defaultTheme = "auto"
-  ShowReadingTime = true
+  ShowReadingTime = false
   ShowShareButtons = false
   ShowPostNavLinks = true
   ShowBreadCrumbs = false
+  disableSpecial1stPost = true
