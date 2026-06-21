@@ -13,7 +13,3 @@ buildFuture = false
   ShowShareButtons = false
   ShowPostNavLinks = true
   ShowBreadCrumbs = false
-
-[params.homeInfoParams]
-  Title = "ようこそ"
-  Content = "ゲームを通して感じたことを書いています"

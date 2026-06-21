@@ -1,0 +1,24 @@
+/* サイト全体のフォント・行間 */
+:root {
+  --font-serif: "Noto Serif JP", serif;
+}
+
+body {
+  font-family: "Noto Serif JP", serif;
+  line-height: 1.9;
+}
+
+/* 記事本文 */
+.post-content,
+.md-content {
+  line-height: 1.9;
+}
+
+.md-content p {
+  line-height: 1.9;
+}
+
+/* 一覧の抜粋 */
+.post-entry .entry-content {
+  line-height: 1.9;
+}
