@@ -4,8 +4,7 @@
     {{- $scratch.Add "meta" (slice (printf "<span title='%s'>%s</span>" (.Date) (.Date | time.Format (default ":date_long" site.Params.DateFormat)))) }}
 {{- end }}
 
-{{- $isLatest := partial "is_latest_post.html" . }}
-{{- if and $isLatest (not .Date.IsZero) -}}
+{{- if and (partial "is_latest_post.html" .) (not .Date.IsZero) -}}
     {{- $scratch.Add "meta" (slice (printf "<span title='%s'>%s</span>" (.Date) (partial "relative_time_ja.html" .Date))) }}
 {{- end }}
 

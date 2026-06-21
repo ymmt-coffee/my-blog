@@ -8,7 +8,9 @@
     {{- end }}
   </header>
   {{- if ne (.Param "hideSummary") true }}
-  <p class="home-archive-excerpt">{{ .Summary | plainify | htmlUnescape }}{{ if .Truncated }}…{{ end }}</p>
+  <div class="home-archive-excerpt">
+    {{- partial "post_summary.html" . -}}
+  </div>
   {{- end }}
   <a class="entry-link" aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}"></a>
 </article>

@@ -175,7 +175,8 @@ body {
   white-space: nowrap;
 }
 
-.home-archive-excerpt {
+.home-archive-excerpt,
+.home-archive-excerpt p {
   margin: 0;
   color: var(--secondary);
   font-size: 0.875rem;
