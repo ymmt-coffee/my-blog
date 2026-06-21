@@ -1,10 +1,10 @@
 /* サイト全体のフォント・行間 */
 :root {
-  --font-serif: "Noto Serif JP", serif;
+  --font-sans: "Noto Sans JP", sans-serif;
 }
 
 body {
-  font-family: "Noto Serif JP", serif;
+  font-family: "Noto Sans JP", sans-serif;
   line-height: 1.9;
 }
 
