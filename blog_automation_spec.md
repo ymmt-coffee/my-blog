@@ -17,48 +17,42 @@ Obsidian の `Diary/blog` フォルダに置いた記事を Hugo ブログに変
 ├── 20_Personal/
 │   └── Diary/
 │       ├── private/                 ← 私的なメモ・日記（公開されない。Git にも上げない）
-│       │   └── 2026-06-18-memo.md
 │       └── blog/                    ← ここに入れた記事だけが公開対象
-│           ├── 2026-06-17-zelda.md
-│           └── 2026-06-20-cardgame.md
 └── 30_Projects/
     └── 10_Apps/
         └── my-blog/                 ← Hugoプロジェクト（このフォルダだけ GitHub 管理）
             ├── .git/
             ├── hugo.toml
-            ├── publish.ps1            ← 同期〜push を一括実行するスクリプト
-            ├── requirements.txt       ← Python 依存（python-frontmatter）
-            ├── content/
-            │   └── posts/           ← 変換後の記事が入る（sync_diary.py が生成）
+            ├── publish.ps1            ← 同期〜push を一括実行
+            ├── requirements.txt
+            ├── blog_automation_spec.md
+            ├── assets/css/extended/
+            │   └── custom.css         ← サイトデザインのカスタム CSS
+            ├── layouts/
+            │   ├── list.html          ← トップページの一覧レイアウト
+            │   └── _partials/         ← テーマ上書き用パーシャル
+            ├── content/posts/         ← sync_diary.py が生成
             ├── scripts/
-            │   ├── sync_diary.py    ← 変換スクリプト
-            │   └── .synced_files.json  ← 同期管理用（gitignore 対象）
-            ├── static/images/        ← 変換時にコピーされる画像
+            │   ├── sync_diary.py
+            │   └── .synced_files.json  ← gitignore 対象
+            ├── static/images/
             ├── themes/PaperMod/
-            └── .github/workflows/
-                └── hugo.yml          ← push / cron でビルド・デプロイ
+            └── .github/workflows/hugo.yml
 ```
 
 ### 処理の流れ
 
-1. ユーザーが記事を書く。公開したいものは `20_Personal/Diary/blog/` に、私的なメモは `20_Personal/Diary/private/` に置く
-2. `publish.ps1` を実行（または `python scripts/sync_diary.py` のみ実行）
-   - `Diary/blog/` 内だけを走査し、各記事を Hugo 形式に変換して `my-blog/content/posts/` に書き出す
-   - `Diary/private/` には一切アクセスしない
-3. `publish.ps1` が続けて `git add` → `git commit` → `git push` を実行
-4. GitHub Actions が **push 時** および **毎日定時（cron）** に Hugo をビルド
-   - `date`（=公開日時）が現在時刻より前の記事だけが公開される
-5. GitHub Pages に自動デプロイ
+1. ユーザーが記事を書く。公開対象は `Diary/blog/`、非公開は `Diary/private/`
+2. `publish.ps1` を実行（または `python scripts/sync_diary.py` のみ）
+3. `git push`（`publish.ps1` が自動実行）
+4. GitHub Actions が push 時および cron（毎朝8時 JST）で Hugo をビルド
+5. GitHub Pages にデプロイ
 
-> ポイント: 記事の push は `publish.ps1`（または手動 git）で行う。公開タイミングの制御は GitHub Actions 側の cron + Hugo の未来日付除外に任せる。PC の常時起動は不要。
-
-> 安全設計: 公開されるかどうかは「どのフォルダに置いたか」だけで決まる。`blog/` に入れれば公開、`private/` に入れれば非公開。フラグの書き忘れ・書き間違いによる誤公開が原理的に起きない。公開・非公開の切り替えは Obsidian 上でファイルを `blog/` ⇔ `private/` へドラッグするだけ。
+> 安全設計: 公開可否はフォルダ配置だけで決まる。`publish` フラグは不要。
 
 ---
 
 ## 3. 記事の書き方（ユーザー側のルール）
-
-`Diary/blog/` に置く記事のフロントマター例:
 
 ```markdown
 ---
@@ -72,124 +66,51 @@ tags: ["ゲーム", "ゼルダ"]
 
 | フィールド | 必須 | 説明 |
 |---|---|---|
-| `title` | 任意 | 記事タイトル。省略時はファイル名から生成（`YYYY-MM-DD-` プレフィックスは除去） |
-| `date` | 任意 | 公開日時（JST 想定）。**この時刻を過ぎるとビルド時に公開される**。省略時はファイルの更新日時 |
+| `title` | 任意 | 省略時はファイル名から生成（`YYYY-MM-DD-` プレフィックス除去） |
+| `date` | 任意 | 公開日時（JST）。省略時はファイルの更新日時 |
 | `tags` | 任意 | タグ |
 
-`publish` フラグは不要（フォルダで判定するため）。
-
-予約投稿したい場合は `date` を未来の日時にしておく。cron ビルドのタイミングでその時刻を過ぎていれば公開される。
+予約投稿は `date` を未来に設定。cron ビルド時に時刻を過ぎていれば公開される。
 
 ---
 
-## 4. 変換スクリプト `sync_diary.py` の仕様
+## 4. 変換スクリプト `sync_diary.py`
 
-### 配置と実行
-
-- 配置: `my-blog/scripts/sync_diary.py`
-- 実行: `python scripts/sync_diary.py`（`my-blog` ディレクトリ内で実行する想定。`publish.ps1` からも呼ばれる）
-- 依存: Python 3 + `python-frontmatter`（`pip install -r requirements.txt`）
-
-### 設定（スクリプト冒頭の定数）
+### 設定
 
 ```python
-BLOG_DIR = Path(r"C:\Users\ymmt_\Documents\Life_and_Div\20_Personal\Diary\blog")  # 絶対パス
-OUTPUT_DIR = "content/posts"          # PROJECT_ROOT からの相対パス
-IMAGE_OUTPUT_DIR = "static/images"      # PROJECT_ROOT からの相対パス
+BLOG_DIR = Path(r"C:\Users\ymmt_\Documents\Life_and_Div\20_Personal\Diary\blog")
+OUTPUT_DIR = "content/posts"
+IMAGE_OUTPUT_DIR = "static/images"
 ```
 
-> 注: `BLOG_DIR` は環境に合わせて絶対パスで指定する。`private/` フォルダは走査対象に含めない（`BLOG_DIR` より上を見に行かない）。
+### 処理
 
-### 処理内容
+1. `BLOG_DIR` 以下の `.md` を再帰走査（`private/` には触れない）
+2. フロントマター解析・変換（wikilink プレーンテキスト化、画像を `static/images/` へコピー）
+3. `content/posts/` へファイル名そのままで出力
+4. 同期削除（`scripts/.synced_files.json` で管理。手書き記事は消さない）
 
-1. `BLOG_DIR` 以下の `.md` ファイルを再帰的に走査する（`private/` には触れない）
-2. 各ファイルのフロントマターを解析する
-3. 以下の変換を行う:
-   - **フロントマター変換**: `title` / `date` がなければ補完。`publish` フラグは除去。その他のフィールドはそのまま引き継ぐ
-   - **wikilink 変換**: `[[ページ名]]` / `[[ページ名|表示名]]` / `[[ページ名#見出し]]` をプレーンテキスト化
-   - **画像変換**: `![[画像.png]]` 形式を `![](/images/画像.png)` に変換し、画像ファイルを `static/images/` にコピーする。画像の探索順: 記事と同じフォルダ → `attachments/` サブフォルダ → 親ディレクトリ（`blog/` 内に限る）
-4. 変換結果を `content/posts/` に**ファイル名そのまま**（フラット）で書き出す
-5. **同期削除**: `blog/` から消えた記事は `content/posts/` 側からも削除する。スクリプトが出力したファイルのみを管理（`scripts/.synced_files.json` に記録。手書きで置いた記事は誤って消さない）
+### 実行
 
-### 出力
-
-- 標準出力に、変換・スキップ・削除件数と出力先を表示する（同期レポート）
-
-### エラーハンドリング
-
-- フロントマターが壊れている記事は警告を出してスキップ（処理全体は止めない）
-- `BLOG_DIR` が存在しない場合は明確なエラーメッセージを出して終了
-- Windows では標準出力を UTF-8 に設定して文字化けを抑制
+```powershell
+pip install -r requirements.txt   # 初回のみ
+python scripts/sync_diary.py
+```
 
 ---
 
-## 5. 公開スクリプト `publish.ps1` の仕様
-
-### 配置と実行
-
-- 配置: `my-blog/publish.ps1`
-- 実行例:
-  - ターミナル: `.\publish.ps1`（`my-blog` 内、またはフルパス指定）
-  - Obsidian Shell Commands プラグイン（後述）
-
-### 処理内容（順番に実行）
+## 5. 公開スクリプト `publish.ps1`
 
 1. `python scripts/sync_diary.py`
 2. `git add .`
-3. `git commit -m "update posts"`（ステージ済み変更がなければスキップ。エラーで止まらない）
+3. `git commit -m "update posts"`（変更なしならスキップ）
 4. `git push`
 
-各ステップの成否を `[OK]` / `[FAILED]` でコンソールに表示する。
+- `$PSScriptRoot` に移動してから実行（どこから起動しても動作）
+- UTF-8 出力設定あり
 
-### 実装上の注意
-
-- 先頭で `$PSScriptRoot` に `Set-Location` し、どこから実行されても `my-blog` 直下で動作する
-- Obsidian 等からの実行で文字化けしないよう、UTF-8 出力設定を先頭で行う
-
----
-
-## 6. Hugo 側の設定
-
-### `hugo.toml`
-
-```toml
-baseURL = "https://ymmt-coffee.github.io/my-blog/"
-buildFuture = false
-
-[frontmatter]
-  date = ["date", "publishDate"]
-```
-
-- `baseURL` は実際の GitHub Pages URL に合わせる（プレースホルダーのままだと記事リンクが 404 になる）
-- `buildFuture = false` で未来日付の記事をビルド時に除外
-
-### ローカルプレビュー
-
-| 目的 | コマンド |
-|---|---|
-| 下書きも含めて表示 | `hugo server -D --baseURL http://localhost:1313/` |
-| 未来日付の予約投稿も確認 | 上記に `-F` を追加 |
-
-> `-D` は下書き（`draft: true`）用。未来日付の表示には `-F` が必要。ローカルでは `--baseURL http://localhost:1313/` を付けないと、記事リンクが本番 URL を指してしまう。
-
-### `.github/workflows/hugo.yml`
-
-- `push`（main ブランチ）と cron（`0 23 * * *` = 日本時間 毎朝8時）でビルド
-- `hugo --minify` でビルド
-- cron ビルドのたびに「その時点で `date` を過ぎた記事」が公開される
-
----
-
-## 7. Obsidian 側の設定
-
-### 除外フォルダ
-
-- `my-blog` が vault 内にあるため、Obsidian が `content/posts/` 内の Markdown をノートとして認識してしまう
-- **対策**: 「設定 → ファイルとリンク → 除外フォルダ」に `30_Projects/10_Apps/my-blog` を追加
-
-### Shell Commands プラグイン（任意）
-
-Obsidian から `publish.ps1` を実行する場合のコマンド例（**1行で記述すること。改行を入れると `-File` にパスが渡らず失敗する**）:
+Obsidian Shell Commands（**1行で記述**）:
 
 ```
 powershell -ExecutionPolicy Bypass -File "C:\Users\ymmt_\Documents\Life_and_Div\30_Projects\10_Apps\my-blog\publish.ps1"
@@ -197,45 +118,129 @@ powershell -ExecutionPolicy Bypass -File "C:\Users\ymmt_\Documents\Life_and_Div\
 
 ---
 
-## 8. .gitignore
+## 6. Hugo 設定（`hugo.toml`）
 
-`my-blog/.gitignore` に以下が含まれること:
+```toml
+baseURL = "https://ymmt-coffee.github.io/my-blog/"
+title = "logs"
+theme = "PaperMod"
+buildFuture = false
+
+[frontmatter]
+  date = ["date", "publishDate"]
+
+[params]
+  ShowReadingTime = false      # 読了時間は非表示
+  disableSpecial1stPost = true # PaperMod 標準の先頭記事拡大を無効化
+```
+
+### ローカルプレビュー
+
+```powershell
+hugo server -D --baseURL http://localhost:1313/
+```
+
+| フラグ | 用途 |
+|---|---|
+| `-D` | 下書き（`draft: true`）を含める |
+| `-F` | 未来日付の予約投稿を含める |
+
+---
+
+## 7. サイトデザイン・レイアウト
+
+PaperMod をベースに、以下をカスタマイズしている。
+
+### フォント・行間
+
+- フォント: **Noto Sans JP**（Google Fonts、`layouts/_partials/extend_head.html`）
+- 行間: `line-height: 1.9`（`assets/css/extended/custom.css`）
+
+### ヘッダー
+
+- サイトタイトル「logs」を中央寄せ
+- ライト/ダーク切替ボタンはタイトル右隣（折り返さない）
+- スマホ（768px 以下）: 上部余白を追加（`safe-area-inset-top` 対応）
+
+### トップページ一覧
+
+| 区分 | 表示 | 件数 |
+|---|---|---|
+| **最新記事（フィーチャー）** | 大きなタイトル、3行抜粋、日付 · 経過時間、「続きを読む →」 | 1件 |
+| **旧記事（アーカイブ）** | カード形式。タイトル（左）+ 日付（右）、1行抜粋 | 最大9件/ページ |
+
+- 1ページあたり合計10件（Hugo デフォルト paginate）。2ページ目以降はフィーチャーなし
+- フィーチャー記事はクリックで記事ページへ（全文は個別ページで閲覧）
+- 挨拶文（homeInfoParams）は使用しない
+
+### 日付・経過時間の表示
+
+| 場所 | 最新記事 | 旧記事 |
+|---|---|---|
+| トップ（フィーチャー） | 日付 · 経過時間 | — |
+| トップ（アーカイブカード） | — | 日付のみ |
+| 記事ページ | 日付 · 経過時間 | 日付のみ |
+
+- **読了時間は表示しない**
+- **経過時間**（`2日前` など）は最新記事のみ（`layouts/_partials/relative_time_ja.html`）
+- 最新記事の判定: `layouts/_partials/is_latest_post.html`
+
+### カスタムファイル一覧
+
+| ファイル | 役割 |
+|---|---|
+| `layouts/list.html` | トップページのフィーチャー/アーカイブ切替 |
+| `layouts/_partials/home_featured.html` | 最新記事ブロック |
+| `layouts/_partials/home_archive_entry.html` | 旧記事カード |
+| `layouts/_partials/post_meta.html` | 記事ページのメタ情報 |
+| `layouts/_partials/post_entry.html` | タグ一覧等の標準リスト項目 |
+| `layouts/_partials/post_summary.html` | 抜粋テキスト |
+| `layouts/_partials/date_and_elapsed.html` | 日付 · 経過時間 |
+| `layouts/_partials/relative_time_ja.html` | 経過時間の日本語化 |
+| `layouts/_partials/is_latest_post.html` | 最新記事判定 |
+| `layouts/_partials/extend_head.html` | Google Fonts 読み込み |
+| `assets/css/extended/custom.css` | デザイン CSS |
+
+---
+
+## 8. Obsidian 側の設定
+
+- **除外フォルダ**: `30_Projects/10_Apps/my-blog`
+- **Shell Commands**: 上記 `publish.ps1` を1行で登録
+
+---
+
+## 9. .gitignore
 
 ```
-# Hugo build output
 /public/
 /resources/_gen/
 .hugo_build.lock
-
-# OS
 .DS_Store
 Thumbs.db
-
-# スクリプトの同期記録
 scripts/.synced_files.json
 ```
 
 ---
 
-## 9. 動作確認の手順
+## 10. 動作確認の手順
 
-1. 初回のみ: `pip install -r requirements.txt`
-2. `Diary/blog/` にテスト記事を1本、`Diary/private/` に別の記事を1本書く
-3. `python scripts/sync_diary.py`（または `.\publish.ps1`）を実行
-   - `content/posts/` に `blog/` の記事だけが出ること
-   - `private/` の記事が出ないこと
-4. `hugo server -D --baseURL http://localhost:1313/` でローカルプレビュー
-5. `date` を未来日時にした記事は `-F` なしでは表示されないことを確認（予約投稿の挙動）
-6. `publish.ps1` または手動 `git push` → GitHub Actions のビルドを確認 → https://ymmt-coffee.github.io/my-blog/ で表示を確認
+1. `pip install -r requirements.txt`
+2. `Diary/blog/` に記事を置き `python scripts/sync_diary.py` を実行
+3. `hugo server -D --baseURL http://localhost:1313/` でプレビュー
+4. トップ: フィーチャー1件 + 旧記事カード。旧記事は日付のみ
+5. 最新記事ページ: 日付 · 経過時間。旧記事ページ: 日付のみ
+6. `.\publish.ps1` → https://ymmt-coffee.github.io/my-blog/ で確認
 
 ---
 
-## 10. 実装済み機能一覧
+## 11. 実装済み機能一覧
 
-- [x] `sync_diary.py` — `Diary/blog/` の記事を Hugo 形式に変換コピー
-- [x] wikilink・画像の変換処理
-- [x] 同期削除（`blog/` からの削除・`private/` への移動への追従）
-- [x] エラーハンドリングとレポート出力
-- [x] `publish.ps1` — 同期〜git push の一括実行
-- [x] `hugo.toml` — `baseURL` / `buildFuture` / `[frontmatter]` 設定
-- [x] Obsidian Shell Commands からの実行対応
+- [x] Obsidian → Hugo 同期（`sync_diary.py`）
+- [x] wikilink・画像変換、同期削除
+- [x] `publish.ps1`（Obsidian Shell Commands 対応）
+- [x] GitHub Pages デプロイ（push + cron）
+- [x] カスタムトップページ（フィーチャー + アーカイブ）
+- [x] Noto Sans JP、行間 1.9
+- [x] 最新記事のみ経過時間表示
+- [x] スマホ向けヘッダー調整

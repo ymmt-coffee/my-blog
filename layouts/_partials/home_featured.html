@@ -9,16 +9,12 @@
   </header>
   {{- if ne (.Param "hideSummary") true }}
   <div class="home-featured-content">
-    <p>{{ .Summary | plainify | htmlUnescape }}{{ if .Truncated }}…{{ end }}</p>
+    {{- partial "post_summary.html" . -}}
   </div>
   {{- end }}
   <footer class="home-featured-footer">
     <div class="home-featured-meta">
-      {{- if not .Date.IsZero }}
-      <span title="{{ .Date }}">{{ .Date | time.Format (default ":date_long" site.Params.DateFormat) }}</span>
-      <span class="meta-sep">·</span>
-      <span title="{{ .Date }}">{{ partial "relative_time_ja.html" .Date }}</span>
-      {{- end }}
+      {{- partial "date_and_elapsed.html" . -}}
     </div>
     <span class="home-featured-readmore">続きを読む →</span>
   </footer>
