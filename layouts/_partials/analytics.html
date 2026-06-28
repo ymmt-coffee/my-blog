@@ -1,0 +1,38 @@
+{{- $provider := .Site.Params.analytics.provider | default "" -}}
+
+{{- if eq $provider "umami" -}}
+  {{- $scriptUrl := .Site.Params.analytics.umami.scriptUrl | default "https://cloud.umami.is/script.js" -}}
+  {{- $websiteId := .Site.Params.analytics.umami.websiteId | default "" -}}
+  {{- $excludeSelf := .Site.Params.analytics.umami.excludeSelf | default false -}}
+  {{- if and $websiteId $excludeSelf -}}
+<script>
+(function () {
+  if (window.location.search.indexOf('umami_ignore_self=1') !== -1) {
+    document.cookie = 'umami_ignore_self=1; path=/; max-age=' + 60 * 60 * 24 * 365;
+  }
+})();
+function umamiBeforeSend(type, payload) {
+  return document.cookie.indexOf('umami_ignore_self=1') !== -1 ? false : payload;
+}
+</script>
+  {{- end -}}
+  {{- if $websiteId -}}
+<script defer src="{{ $scriptUrl }}" data-website-id="{{ $websiteId }}"{{ if $excludeSelf }} data-before-send="umamiBeforeSend"{{ end }}></script>
+  {{- end -}}
+{{- else if eq $provider "google" -}}
+  {{- $measurementId := .Site.Params.analytics.google.measurementId | default "" -}}
+  {{- if $measurementId -}}
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ $measurementId }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '{{ $measurementId }}');
+</script>
+  {{- end -}}
+{{- else if eq $provider "plausible" -}}
+  {{- $domain := .Site.Params.analytics.plausible.domain | default "" -}}
+  {{- if $domain -}}
+<script defer data-domain="{{ $domain }}" src="https://plausible.io/js/script.js"></script>
+  {{- end -}}
+{{- end -}}

@@ -21,6 +21,7 @@ buildFuture = false
     [params.analytics.umami]
       scriptUrl = "https://cloud.umami.is/script.js"
       websiteId = "c0e08380-ff29-4ec6-a9af-282f5b48afc6"
+      excludeSelf = true
 
     [params.analytics.google]
       measurementId = ""
