@@ -14,3 +14,16 @@ buildFuture = false
   ShowPostNavLinks = true
   ShowBreadCrumbs = false
   disableSpecial1stPost = true
+
+  [params.analytics]
+    provider = "umami"
+
+    [params.analytics.umami]
+      scriptUrl = "https://cloud.umami.is/script.js"
+      websiteId = "c0e08380-ff29-4ec6-a9af-282f5b48afc6"
+
+    [params.analytics.google]
+      measurementId = ""
+
+    [params.analytics.plausible]
+      domain = ""
